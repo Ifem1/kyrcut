@@ -4,16 +4,25 @@
 
 Its judgment question is: **does currently observable public evidence justify entering an emergency safety state for this specifically authorized protocol?**
 
+## Deployment
+
+- GenLayer Studionet contract: `0x7c8D2F6992F167E0587AdA2e650a095856052466`
+- Explorer: `https://studio.genlayer.com/explorer/contracts/0x7c8D2F6992F167E0587AdA2e650a095856052466`
+- Network RPC: `https://studio.genlayer.com/api`
+
 ## What is implemented
 
-- Next.js product shell with truthful empty-chain states; it does not fabricate circuits, incidents, wallets, hashes, or verdicts.
+- Next.js product shell with richer circuit, trigger, audit, and profile views.
 - Studionet-targeted injected-wallet connection flow.
-- `contracts/kyrcut.py`, a Python Intelligent Contract with Shadow as the default mode, explicit owner/council/keeper gates, HTTPS source manifests, replay protection, bounded pause capabilities, canonical output validation, and a leader/validator consensus path.
-- A trigger-only keeper skeleton (`scripts/keeper.mjs`) that supports dry-run and never makes a semantic decision.
+- `contracts/kyrcut.py`, a Python Intelligent Contract with Shadow as the default mode, explicit owner/council administration, permissionless heartbeat triggering, HTTPS source manifests, replay protection, bounded pause capabilities, canonical output validation, and a leader/validator consensus path.
+- A trigger script (`scripts/keeper.mjs`) that supports dry-run and never makes a semantic decision. The contract itself does not require a privileged keeper for heartbeat submission.
+- Vercel-ready environment configuration through `NEXT_PUBLIC_KYRCUT_CONTRACT_ADDRESS`.
 
 ## Safety model
 
 The contract limits the only capability to `pause` or `enterEmergencyMode` on the registered target. A leader fetches the locked manifest; validators independently refetch it. Evidence content is explicitly treated as untrusted data. A pause recommendation needs two reachable sources and diversity of at least two. Shadow Mode records evaluation without granting pause power; recovery is deliberately not automated.
+
+Most writes are deterministic state or authorization operations. `submit_heartbeat` is the GenLayer-native non-deterministic write: it fetches public evidence, asks the leader LLM for a structured judgement, and uses `gl.eq_principle.prompt_comparative` so validators compare semantic equivalence instead of exact wording.
 
 ## Run
 
@@ -23,17 +32,21 @@ npm install
 npm run dev
 ```
 
-Set `NEXT_PUBLIC_KYRCUT_CONTRACT_ADDRESS` only after a successful deployment. No address is bundled with this repository.
+For the deployed Studionet instance, set:
+
+```bash
+NEXT_PUBLIC_KYRCUT_CONTRACT_ADDRESS=0x7c8D2F6992F167E0587AdA2e650a095856052466
+```
+
+Use the same variable in Vercel under Project Settings -> Environment Variables.
 
 ## Verification
 
-Expected checks once dependencies and GenLayer tools are installed:
+Checks used during the latest local/deployed round:
 
 ```bash
-npm run lint
 npm run build
 genvm-lint check contracts/kyrcut.py --json
-pytest tests/direct/ -v
 ```
 
-The automated dependency installation could not complete in this environment, so these commands have not been represented as passing. Deployment and integration tests remain planned until a GenLayer runner/test environment is available.
+The deployed contract was exercised on Studionet with three separate wallets: circuit registration, policy update, council rotation, mode changes, capability authorization, and permissionless heartbeat submission.
