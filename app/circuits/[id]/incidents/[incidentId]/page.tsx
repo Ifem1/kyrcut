@@ -1,0 +1,2 @@
+import { AppShell } from "@/components/app-shell";
+export default async function Incident({params}:{params:Promise<{id:string;incidentId:string}>}){const {id,incidentId}=await params;return <AppShell title={`Circuit ${id} / Incident ${incidentId}`}><div className="empty"><h2>Incident not loaded</h2><p>Evidence fingerprints, source fetch status, decision schema version, and finalized receipt render only after a successful chain read.</p></div></AppShell>}

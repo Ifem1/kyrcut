@@ -1,0 +1,4 @@
+import { circuitStates } from "@/lib/kyrcut";
+export function CircuitRail({state="NORMAL"}:{state?:typeof circuitStates[number]}){const rail=["NORMAL","WATCH","ARMED","PAUSED"] as const;return <ol className="circuit-rail" aria-label={`Circuit state: ${state}`}>{rail.map((item,index)=><li className={item===state?"current":""} key={item}><span>{String(index+1).padStart(2,"0")}</span>{item}</li>)}</ol>}
+export function ModeBadge({mode}:{mode:"SHADOW"|"ARMED"|"DISABLED"}){return <span className={`mode ${mode.toLowerCase()}`}>{mode}</span>}
+export function CapabilitySeal({target,action}:{target?:string;action?:string}){return <div className="seal"><small>CAPABILITY SEAL</small><strong>{action||"Not authorized"}</strong><code>{target?`${target.slice(0,10)}…${target.slice(-6)}`:"No allowlisted target"}</code></div>}
