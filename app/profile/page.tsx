@@ -37,9 +37,12 @@ type WalletStats = {
   circuits: number;
   cases: number;
   scanned: number;
+  cachedAt: number;
 };
 
 const defaultDraft: ProfileDraft = { name: "Kyrcut operator", contact: "", github: "" };
+const PROFILE_CACHE_MS = 120_000;
+const PROFILE_SCAN_LIMIT = 6;
 
 function sameAddress(left?: string, right?: string) {
   return Boolean(left && right && left.toLowerCase() === right.toLowerCase());
@@ -50,7 +53,13 @@ export default function Profile() {
   const { address, connect, disconnect } = useWallet();
   const [draft, setDraft] = useState<ProfileDraft>(defaultDraft);
   const [editing, setEditing] = useState(false);
-  const [stats, setStats] = useState<WalletStats>({ status: "idle", circuits: 0, cases: 0, scanned: 0 });
+  const [stats, setStats] = useState<WalletStats>({
+    status: "idle",
+    circuits: 0,
+    cases: 0,
+    scanned: 0,
+    cachedAt: 0,
+  });
 
   useEffect(() => {
     const saved = window.localStorage.getItem("kyrcut.profile");
@@ -65,12 +74,26 @@ export default function Profile() {
 
   useEffect(() => {
     if (!ca || !address) {
-      setStats({ status: "idle", circuits: 0, cases: 0, scanned: 0 });
+      setStats({ status: "idle", circuits: 0, cases: 0, scanned: 0, cachedAt: 0 });
       return;
     }
 
     let cancelled = false;
     async function loadStats() {
+      const cacheKey = `kyrcut.profile.stats.${ca}.${address}`.toLowerCase();
+      const cached = window.sessionStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached) as WalletStats;
+          if (Date.now() - parsed.cachedAt < PROFILE_CACHE_MS) {
+            setStats(parsed);
+            return;
+          }
+        } catch {
+          window.sessionStorage.removeItem(cacheKey);
+        }
+      }
+
       setStats((current) => ({ ...current, status: "loading" }));
       try {
         const client = createClient({
@@ -81,7 +104,7 @@ export default function Profile() {
         let cases = 0;
         let scanned = 0;
 
-        for (let id = 1; id <= 20; id += 1) {
+        for (let id = 1; id <= PROFILE_SCAN_LIMIT; id += 1) {
           const result = (await client.readContract({
             address: ca as `0x${string}`,
             functionName: "get_circuit",
@@ -96,9 +119,11 @@ export default function Profile() {
           }
         }
 
-        if (!cancelled) setStats({ status: "ready", circuits, cases, scanned });
+        const nextStats = { status: "ready" as const, circuits, cases, scanned, cachedAt: Date.now() };
+        window.sessionStorage.setItem(cacheKey, JSON.stringify(nextStats));
+        if (!cancelled) setStats(nextStats);
       } catch {
-        if (!cancelled) setStats({ status: "error", circuits: 0, cases: 0, scanned: 0 });
+        if (!cancelled) setStats({ status: "error", circuits: 0, cases: 0, scanned: 0, cachedAt: 0 });
       }
     }
 
@@ -215,10 +240,10 @@ export default function Profile() {
               <small>Your cases</small>
               <strong>{stats.status === "ready" ? stats.cases : stats.status === "loading" ? "..." : "0"}</strong>
             </div>
-            <div>
-              <small>Indexed</small>
-              <strong>{stats.status === "ready" ? stats.scanned : stats.status === "error" ? "N/A" : "0"}</strong>
-            </div>
+          <div>
+            <small>Indexed</small>
+            <strong>{stats.status === "ready" ? stats.scanned : stats.status === "error" ? "N/A" : "0"}</strong>
+          </div>
           </div>
           <div className="status-line">
             <span className="pulse" /> {ca ? "CA connected" : "CA missing"} ·{" "}
@@ -235,7 +260,7 @@ export default function Profile() {
           <div>
             <Radio size={16} />
             <span>Registered circuits</span>
-            <strong>{stats.status === "ready" ? stats.circuits : "Connect wallet"}</strong>
+            <strong>{stats.status === "ready" ? stats.circuits : address ? "Reading..." : "Connect wallet"}</strong>
           </div>
           <div>
             <ShieldCheck size={16} />

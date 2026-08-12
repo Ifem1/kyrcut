@@ -125,6 +125,23 @@ class Incident:
     acknowledged: bool
     recovery_requested: bool
     recovery_confirmed: bool
+    target_action_emitted: bool
+    target_action: str
+
+
+@gl.contract_interface
+class KyrcutTargetAdapter:
+    class View:
+        def is_paused(self) -> bool: ...
+
+        def get_last_kyrcut_action(self) -> dict: ...
+
+    class Write:
+        def pause(self, circuit_id: u256, observation_id: u256, incident_id: u256, reason_hash: str) -> None: ...
+
+        def enterEmergencyMode(
+            self, circuit_id: u256, observation_id: u256, incident_id: u256, reason_hash: str
+        ) -> None: ...
 
 
 def _coerce_address(value) -> Address:
@@ -331,6 +348,7 @@ class KyrcutProtocol(gl.Contract):
     incidents: TreeMap[u256, Incident]
     circuit_count: u256
     observation_count: u256
+    incident_count: u256
     max_circuits: u256
     max_observations_per_circuit: u256
 
@@ -341,6 +359,7 @@ class KyrcutProtocol(gl.Contract):
             raise gl.vm.UserError("max_observations_per_circuit out of range")
         self.circuit_count = u256(0)
         self.observation_count = u256(0)
+        self.incident_count = u256(0)
         self.max_circuits = u256(max_circuits)
         self.max_observations_per_circuit = u256(max_observations_per_circuit)
 
@@ -514,7 +533,8 @@ class KyrcutProtocol(gl.Contract):
         incident_id = u256(0)
         if state_after in [STATE_ARMED, STATE_PAUSED]:
             circuit.incident_count = circuit.incident_count + u256(1)
-            incident_id = circuit.incident_count
+            self.incident_count = self.incident_count + u256(1)
+            incident_id = self.incident_count
 
         self.observations[observation_id] = Observation(
             observation_id=observation_id,
@@ -545,12 +565,37 @@ class KyrcutProtocol(gl.Contract):
                 acknowledged=False,
                 recovery_requested=False,
                 recovery_confirmed=False,
+                target_action_emitted=False,
+                target_action="",
             )
 
         circuit.state = state_after
         circuit.last_window_end = u256(window_end)
         self.circuits[cid] = circuit
+        if state_after == STATE_PAUSED and result["recommended_action"] == ACTION_PAUSE:
+            self._emit_target_capability(circuit, cid, observation_id, incident_id, result["summary"])
         return observation_id
+
+    def _emit_target_capability(
+        self, circuit: Circuit, circuit_id: u256, observation_id: u256, incident_id: u256, summary: str
+    ) -> None:
+        if incident_id == u256(0):
+            raise gl.vm.UserError("incident required")
+        if circuit.mode != MODE_ARMED:
+            raise gl.vm.UserError("armed mode required")
+        if circuit.capability_id not in [CAP_PAUSE, CAP_EMERGENCY]:
+            raise gl.vm.UserError("capability required")
+
+        reason_hash = hashlib.sha256(summary.encode()).hexdigest()
+        target = KyrcutTargetAdapter(circuit.target)
+        if circuit.capability_id == CAP_PAUSE:
+            target.emit(on="finalized").pause(circuit_id, observation_id, incident_id, reason_hash)
+        else:
+            target.emit(on="finalized").enterEmergencyMode(circuit_id, observation_id, incident_id, reason_hash)
+
+        incident = self.incidents[incident_id]
+        incident.target_action_emitted = True
+        incident.target_action = circuit.capability_id
 
     @gl.public.write
     def acknowledge_incident(self, incident_id: int) -> None:
@@ -611,9 +656,13 @@ class KyrcutProtocol(gl.Contract):
             compact = value.strip()
             if "https://" in compact:
                 start = compact.find("https://")
-                end = compact.find("}", start)
-                if end < 0:
-                    end = len(compact)
+                comma = compact.find(",", start)
+                brace = compact.find("}", start)
+                end = len(compact)
+                if comma >= 0 and comma < end:
+                    end = comma
+                if brace >= 0 and brace < end:
+                    end = brace
                 url = compact[start:end].replace('"', "").replace("'", "").strip()
                 parsed = [{"url": url}]
             else:
@@ -695,6 +744,8 @@ class KyrcutProtocol(gl.Contract):
             "acknowledged": incident.acknowledged,
             "recovery_requested": incident.recovery_requested,
             "recovery_confirmed": incident.recovery_confirmed,
+            "target_action_emitted": incident.target_action_emitted,
+            "target_action": incident.target_action,
         }
 
     @gl.public.view

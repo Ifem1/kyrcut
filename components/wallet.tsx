@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { LogOut, Wallet } from "lucide-react";
 
-type EthereumProvider = {
+export type EthereumProvider = {
   request(args: { method: string; params?: unknown[] }): Promise<string[]>;
   on?: (event: "accountsChanged", callback: (accounts: string[]) => void) => void;
   removeListener?: (event: "accountsChanged", callback: (accounts: string[]) => void) => void;
