@@ -2,7 +2,7 @@
 
 import { AppShell } from "@/components/app-shell";
 import { compactAddress, useWallet } from "@/components/wallet";
-import { createBrowserClient, requireKyrcutAddress, sourceManifestFromUrl } from "@/lib/genlayer-browser";
+import { createBrowserClient, requireKyrcutAddress, sourceManifestFromUrls } from "@/lib/genlayer-browser";
 import { contractAddress } from "@/lib/kyrcut";
 import { Send } from "lucide-react";
 import { useState } from "react";
@@ -35,7 +35,11 @@ export default function NewCircuit() {
           String(form.get("target")),
           String(form.get("council")),
           address,
-          sourceManifestFromUrl(String(form.get("source_url"))),
+          sourceManifestFromUrls([
+            String(form.get("source_url_primary")),
+            String(form.get("source_url_secondary")),
+            String(form.get("source_url_tertiary")),
+          ]),
           String(form.get("policy")),
         ],
         value: 0n,
@@ -65,7 +69,32 @@ export default function NewCircuit() {
         </label>
         <label>
           Primary HTTPS evidence source
-          <input name="source_url" required type="url" pattern="https://.*" placeholder="https://status.example.org" />
+          <input
+            name="source_url_primary"
+            required
+            type="url"
+            pattern="https://.*"
+            placeholder="https://status.example.org"
+          />
+        </label>
+        <label>
+          Independent HTTPS evidence source
+          <input
+            name="source_url_secondary"
+            required
+            type="url"
+            pattern="https://.*"
+            placeholder="https://docs.example.org/incidents"
+          />
+        </label>
+        <label>
+          Third HTTPS evidence source (optional)
+          <input
+            name="source_url_tertiary"
+            type="url"
+            pattern="https://.*"
+            placeholder="https://governance.example.org"
+          />
         </label>
         <label>
           Circuit policy

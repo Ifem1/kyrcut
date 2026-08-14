@@ -3,7 +3,7 @@
 import { AppShell } from "@/components/app-shell";
 import { CapabilitySeal } from "@/components/domain";
 import { compactAddress, useWallet } from "@/components/wallet";
-import { createBrowserClient, requireKyrcutAddress } from "@/lib/genlayer-browser";
+import { authorizeCapabilityThenArm, createBrowserClient, requireKyrcutAddress } from "@/lib/genlayer-browser";
 import { Send } from "lucide-react";
 import { use, useState } from "react";
 
@@ -30,20 +30,15 @@ export default function Capability({ params }: { params: Promise<{ id: string }>
       const contract = requireKyrcutAddress();
       const target = String(form.get("target"));
       const capability = String(form.get("capability"));
-      const tx1 = await client.writeContract({
-        address: contract,
-        functionName: "authorize_pause_capability",
-        args: [Number(id), target, capability],
-        value: 0n,
-      });
-      const tx2 = await client.writeContract({
-        address: contract,
-        functionName: "set_mode",
-        args: [Number(id), "ARMED"],
-        value: 0n,
-      });
+      const { authorizationHash, armHash } = await authorizeCapabilityThenArm(
+        client,
+        contract,
+        Number(id),
+        target,
+        capability,
+      );
       setState("submitted");
-      setMessage(`Capability submitted: ${tx1}. Armed mode submitted: ${tx2}`);
+      setMessage(`Capability finalized/accepted: ${authorizationHash}. Armed mode submitted: ${armHash}`);
     } catch (error) {
       setState("error");
       setMessage(error instanceof Error ? error.message : "Capability update failed");
@@ -66,7 +61,8 @@ export default function Capability({ params }: { params: Promise<{ id: string }>
           </select>
         </label>
         <p>
-          Wallet: <code>{compactAddress(address)}</code>. The council wallet must submit this transaction.
+          Wallet: <code>{compactAddress(address)}</code>. The council wallet must submit this transaction. Kyrcut waits
+          for capability authorization to be accepted before arming.
         </p>
         <button className="button primary" type="submit" disabled={state === "submitting"}>
           <Send size={15} />

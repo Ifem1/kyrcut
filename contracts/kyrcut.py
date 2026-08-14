@@ -65,8 +65,9 @@ interpretation, and reason for abstention or action. Different wording, casing, 
 punctuation, or summary style is equivalent when the operational meaning is unchanged. A
 different recommended action, threat level band, source diversity, target, policy version,
 fetched fact, capability requirement, or pause/recovery direction is not equivalent. PAUSE and
-ARM_PAUSE are equivalent only when both outputs identify substantially the same critical or
-likely incident evidence from multiple independent sources and satisfy the same policy gates.
+ARM_PAUSE are never equivalent: PAUSE executes the registered target capability after finality,
+while ARM_PAUSE only records that the circuit should be armed or escalated without executing the
+target capability. Validators must agree exactly on PAUSE versus ARM_PAUSE for the action field.
 INCONCLUSIVE is equivalent only to INCONCLUSIVE for substantially the same reason: failed
 fetch, insufficient independent sources, ambiguous evidence, stale evidence, unreadable public
 content, or an LLM formatting failure.
